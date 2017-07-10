@@ -1,206 +1,106 @@
-/*
-http://www.apache.org/licenses/LICENSE-2.0.txt
-
-
-Copyright 2015 Intel Corporation
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package kafka
 
 import (
-	"fmt"
-	"math/rand"
+	"reflect"
+	"strings"
 	"time"
 
-	"errors"
-
-	"github.com/intelsdi-x/snap-plugin-lib-go/v1/plugin"
-	"github.com/urfave/cli"
+	"github.com/intelsdi-x/snap/control/plugin"
+	"github.com/intelsdi-x/snap/control/plugin/cpolicy"
+	"github.com/intelsdi-x/snap/core"
+	"github.com/intelsdi-x/snap/core/cdata"
 )
 
-var (
-	strs = []string{
-		"It is certain",
-		"It is decidedly so",
-		"Without a doubt",
-		"Yes definitely",
-		"You may rely on it",
-		"As I see it yes",
-		"Most likely",
-		"Outlook good",
-		"Yes",
-		"Signs point to yes",
-		"Reply hazy try again",
-		"Ask again later",
-		"Better not tell you now",
-		"Cannot predict now",
-		"Concentrate and ask again",
-		"Don't count on it",
-		"My reply is no",
-		"My sources say no",
-		"Outlook not so good",
-		"Very doubtful",
-	}
+// const defines constant varaibles
+const (
+	// Name of plugin
+	Name = "kafka"
+	// Version of plugin
+	Version = 1
+	// Type of plugin
+	PluginType = plugin.CollectorPluginType
+
+	// Timeout duration
+	DefaultTimeout = 5 * time.Second
+
+	Mx4jURL    = "mx4j_url"
+	Mx4jPORT   = "mx4j_port"
+	InvalidURL = "Invalid URL in Global configuration"
+	NoHostname = "No hostname define in Global configuration"
 )
 
-var req bool = false
-
-func init() {
-	rand.Seed(42)
-
-	//The required-config flag is added for testing plugin-lib-go.
-	//When the flag is set, an additional policy will be added in GetConfigPolicy().
-	//This additional policy has a required field. This simulates
-	//the situation when a plugin requires a config to load.
-	plugin.Flags = append(plugin.Flags, cli.BoolFlag{
-		Name:        "required-config",
-		Hidden:      false,
-		Usage:       "Plugin requires config passed in",
-		Destination: &req,
-	})
+// Meta returns the snap plug.PluginMeta type
+func Meta() *plugin.PluginMeta {
+	return plugin.NewPluginMeta(Name, Version, PluginType, []string{plugin.SnapGOBContentType}, []string{plugin.SnapGOBContentType})
 }
 
-// Mock collector implementation used for testing
-type RandCollector struct {
+// NewKafkaCollector returns a new instance of Kafka struct
+func NewKafkaCollector() *Kafka {
+	return &Kafka{}
 }
 
-/*  CollectMetrics collects metrics for testing.
+// Kafka struct
+type Kafka struct {
+	client *Mx4jClient
+}
 
-CollectMetrics() will be called by Snap when a task that collects one of the metrics returned from this plugins
-GetMetricTypes() is started. The input will include a slice of all the metric types being collected.
+// CollectMetrics collects metrics from Kafka through JMX
+func (p *Kafka) CollectMetrics(mts []plugin.MetricType) ([]plugin.MetricType, error) {
+	metrics := []plugin.MetricType{}
 
-The output is the collected metrics as plugin.Metric and an error.
-*/
-func (RandCollector) CollectMetrics(mts []plugin.Metric) ([]plugin.Metric, error) {
-	metrics := []plugin.Metric{}
-	for idx, mt := range mts {
-		mts[idx].Timestamp = time.Now()
-		if val, err := mt.Config.GetBool("return_error"); err == nil && val {
-			return nil, errors.New("Houston, we have a problem!")
-		}
-		if val, err := mt.Config.GetBool("testbool"); err == nil && val {
-			continue
-		}
-
-		if mt.Namespace[0].Value == "static" {
-			var err error
-			mts[idx].Data, err = mts[idx].Config.GetString("value")
-			if err != nil {
-				return nil, fmt.Errorf("Invalid or missing value key.")
-			}
-			metrics = append(metrics, mts[idx])
-		} else if mt.Namespace[len(mt.Namespace)-1].Value == "integer" {
-			if val, err := mt.Config.GetInt("testint"); err == nil {
-				mts[idx].Data = val
-			} else {
-				mts[idx].Data = rand.Int31()
-			}
-			metrics = append(metrics, mts[idx])
-		} else if mt.Namespace[len(mt.Namespace)-1].Value == "float" {
-			if val, err := mt.Config.GetFloat("testfloat"); err == nil {
-				mts[idx].Data = val
-			} else {
-				mts[idx].Data = rand.Float64()
-			}
-			metrics = append(metrics, mts[idx])
-		} else if mt.Namespace[len(mt.Namespace)-1].Value == "string" {
-			if val, err := mt.Config.GetString("teststring"); err == nil {
-				mts[idx].Data = val
-			} else {
-				mts[idx].Data = strs[rand.Intn(len(strs)-1)]
-			}
-			metrics = append(metrics, mts[idx])
-		} else {
-			return nil, fmt.Errorf("Invalid metric: %v", mt.Namespace.Strings())
-		}
+	err := p.loadMetricAPI(mts[0].Config())
+	if err != nil {
+		return nil, err
 	}
+
+	for _, m := range mts {
+		results := []nodeData{}
+		search := strings.Split(replaceUnderscoreToDot(strings.TrimLeft(m.Namespace().String(), "/")), "/")
+		if len(search) > 3 {
+			p.client.Root.Get(p.client.client.GetUrl(), search[4:], 0, &results)
+		}
+
+		for _, result := range results {
+			ns := append([]string{"hyperpilot", "kafka", "node", p.client.host}, strings.Split(result.Path, Slash)...)
+			metrics = append(metrics, plugin.MetricType{
+				Namespace_: core.NewNamespace(ns...),
+				Timestamp_: time.Now(),
+				Data_:      result.Data,
+				Unit_:      reflect.TypeOf(result.Data).String(),
+			})
+		}
+
+	}
+
 	return metrics, nil
 }
 
-/*
-	GetMetricTypes returns metric types for testing.
-	GetMetricTypes() will be called when your plugin is loaded in order to populate the metric catalog(where snaps stores all
-	available metrics).
-
-	Config info is passed in. This config information would come from global config snap settings.
-
-	The metrics returned will be advertised to users who list all the metrics and will become targetable by tasks.
-*/
-func (RandCollector) GetMetricTypes(cfg plugin.Config) ([]plugin.Metric, error) {
-	//Simulate throwing error when a config is required but not passed in
-	if req && len(cfg) < 1 {
-		return nil, fmt.Errorf("! When -required-config is set you must provide a config. Example: -config '{\"key\":\"kelly\", \"spirit-animal\":\"coatimundi\"}'\n")
-	}
-	//Simulate throwing error when dependencies not met
-	if _, ok := cfg["depsReq"]; ok {
-		return nil, fmt.Errorf("! Dependency XX required. Run `make deps` to resolve.")
-	}
-
-	metrics := []plugin.Metric{}
-	vals := []string{"integer", "float", "string"}
-	for _, val := range vals {
-		metric := plugin.Metric{
-			Namespace: plugin.NewNamespace("random", val),
-		}
-		metrics = append(metrics, metric)
-	}
-	if req {
-		metrics = append(metrics, plugin.Metric{
-			Namespace: plugin.NewNamespace("static", "string"),
-		})
-	}
-	return metrics, nil
+// GetMetricTypes returns the metric types exposed by Kafka
+func (p *Kafka) GetMetricTypes(cfg plugin.ConfigType) ([]plugin.MetricType, error) {
+	return NewEmptyMx4jClient().getMetricType(cfg)
 }
 
-/*
-	GetConfigPolicy() returns the configPolicy for your plugin.
+// GetConfigPolicy returns a ConfigPolicy
+func (p *Kafka) GetConfigPolicy() (*cpolicy.ConfigPolicy, error) {
+	c := cpolicy.New()
+	return c, nil
+}
 
-	A config policy is how users can provide configuration info to
-	plugin. Here you define what sorts of config info your plugin
-	needs and/or requires.
-*/
-func (RandCollector) GetConfigPolicy() (plugin.ConfigPolicy, error) {
-	policy := plugin.NewConfigPolicy()
-
-	//The required-config flag is used for testing plugin-lib-go
-	if req {
-		policy.AddNewStringRule([]string{"static", "string"},
-			"value",
-			true,
-		)
+// loadMetricAPI returns the root node
+func (p *Kafka) loadMetricAPI(config *cdata.ConfigDataNode) error {
+	var err error
+	// inits KafkaClient
+	p.client, err = initClient(plugin.ConfigType{ConfigDataNode: config})
+	if err != nil {
+		return err
 	}
 
-	policy.AddNewIntRule([]string{"random", "integer"},
-		"testint",
-		false,
-		plugin.SetMaxInt(1000),
-		plugin.SetMinInt(0))
-
-	policy.AddNewFloatRule([]string{"random", "float"},
-		"testfloat",
-		false,
-		plugin.SetMaxFloat(1000.0),
-		plugin.SetMinFloat(0.0))
-
-	policy.AddNewStringRule([]string{"random", "string"},
-		"teststring",
-		false)
-
-	policy.AddNewBoolRule([]string{"random"},
-		"testbool",
-		false,
-		plugin.SetDefaultBool(false))
-	return *policy, nil
+	// reads the root metric node from the memory
+	// nod, err := readMetricAPI()
+	// if err != nil {
+	err = p.client.buidMetricAPI()
+	if err != nil {
+		return err
+	}
+	return nil
 }

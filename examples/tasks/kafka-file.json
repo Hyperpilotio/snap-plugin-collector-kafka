@@ -1,0 +1,28 @@
+{
+    "version": 1,
+    "schedule": {
+        "type": "simple",
+        "interval": "3s"
+    },
+    "workflow": {
+        "collect": {
+            "metrics": {
+                "/hyperpilot/kafka/node/*/kafka_network/type/RequestMetrics/name/RequestsPerSec/request/Produce/*": {},
+                "/hyperpilot/kafka/node/*/kafka_network/type/RequestMetrics/name/TotalTimeMs/request/Produce/*/": {}
+
+            },
+            "config": {
+                "/hyperpilot/kafka": {
+                    "url": "localhost",
+                    "port": 8082
+                }
+            },
+            "publish": [{
+                "plugin_name": "file",
+                "config": {
+                    "file": "/tmp/collected_kafka.log"
+                }
+            }]
+        }
+    }
+}

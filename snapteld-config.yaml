@@ -1,0 +1,11 @@
+log_level: 1
+log_path: /tmp
+
+control:
+  plugin_trust_level: 0
+  listen_port: 8081
+
+  plugins:
+    all:
+      mx4j_url: localhost
+      mx4j_port: 8082
