@@ -179,17 +179,3 @@ func readXMLAttributes(content []byte) ([]XMLAttribute, error) {
 	xml.Unmarshal(content, &xmlAttributes)
 	return xmlAttributes.Attributes, nil
 }
-
-func (cc *Mx4jClient) tt(reader io.Reader) error {
-	mbeans, err := readObjectname(reader)
-	if err != nil {
-		return err
-	}
-
-	for _, mbean := range mbeans {
-		nodes := makeLitteralNamespace(mbean.Objectname, "")
-		cc.Root.Add(nodes, 0, mbean.Objectname)
-	}
-
-	return nil
-}
