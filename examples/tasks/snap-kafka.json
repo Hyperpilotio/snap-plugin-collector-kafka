@@ -12,7 +12,7 @@
       },
       "config": {
         "/hyperpilot/kafka": {
-          "mx4j_url": "kafka-serve",
+          "mx4j_url": "kafka-serve.default",
           "mx4j_port": 8082
         }
       },
