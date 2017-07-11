@@ -6,7 +6,7 @@ deps:
 	${MAKE} clean
 	glide install
 build:
-	go build -o ./build/snap-plugin-collector-kafka
+	CGO_ENABLED=0 go build -a -installsuffix cgo -o ./build/snap-plugin-collector-kafka
 test:
 	go test ./kafka
 clean:
