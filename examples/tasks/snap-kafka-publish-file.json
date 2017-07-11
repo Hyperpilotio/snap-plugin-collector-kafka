@@ -1,0 +1,30 @@
+{
+    "version": 1,
+    "schedule": {
+        "type": "simple",
+        "interval": "1s"
+    },
+    "workflow": {
+        "collect": {
+            "metrics": {
+                "/hyperpilot/kafka/node/*/kafka_network/type/RequestMetrics/name/RequestsPerSec/request/Produce/*": {},
+                "/hyperpilot/kafka/node/*/kafka_network/type/RequestMetrics/name/TotalTimeMs/request/Produce/*/": {},
+                "/hyperpilot/kafka/node/*/kafka_network/type/BrokerTopicMetrics/name/TotalTimeMs/request/Produce/*/": {},
+                "/hyperpilot/kafka/node/*/java.lang/type/Memory/name/*/*":{},
+                "/hyperpilot/kafka/node/*/java.lang/type/OperatingSystem/name/*/*":{}
+            },
+            "config": {
+                "/hyperpilot/kafka": {
+                    "mx4j_url": "localhost",
+                    "mx4j_port": 8082
+                }
+            },
+            "publish": [{
+                "plugin_name": "file",
+                "config": {
+                    "file": "/tmp/collected_kafka.log"
+                }
+            }]
+        }
+    }
+}

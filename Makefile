@@ -10,4 +10,5 @@ build:
 test:
 	go test ./kafka
 clean:
-	glide cc && rm -r ./vendor
+	glide cc && rm -rf ./vendor ./build
+

@@ -27,10 +27,7 @@ var (
 )
 
 func initClient(cfg interface{}) (*Mx4jClient, error) {
-	fmt.Println("ititClient")
 	items, err := config.GetConfigItems(cfg, Mx4jURL, Mx4jPORT)
-	fmt.Println("PrintingItem")
-	fmt.Println(items)
 	if err != nil {
 		return nil, err
 	}
