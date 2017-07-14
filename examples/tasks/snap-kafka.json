@@ -19,7 +19,7 @@
       "publish": [{
         "plugin_name": "influxdb",
         "config": {
-          "host": "influxsrv",
+          "host": "influxsrv.hyperpilot",
           "port": 8086,
           "database": "snap",
           "user": "root",
