@@ -3,10 +3,11 @@ package kafka
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"github.com/intelsdi-x/snap-plugin-utilities/config"
 	"github.com/intelsdi-x/snap/core"
 	"net"
 	"strings"
+	"os"
+	"errors"
 )
 
 // const defines constant varaibles
@@ -16,6 +17,7 @@ const (
 	QueryDocErr         = "Queried document not found"
 	EmptyNamespaceErr   = "To be collected metric namespace is empty"
 	InvalidNamespaceErr = "To be collected metric namespace is invalid"
+	EnvVarNotSetErr		= "Enviroment variables not set"
 
 	Dot        = "."
 	Underscore = "_"
@@ -27,20 +29,24 @@ var (
 )
 
 func initClient(cfg interface{}) (*Mx4jClient, error) {
-	items, err := config.GetConfigItems(cfg, Mx4jURL, Mx4jPORT)
-	if err != nil {
-		return nil, err
+	// We don't need the config file for now.
+	// items, err := config.GetConfigItems(cfg, Mx4jUrl, Mx4jPort)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// Take mx4j url and port directly from os enviroment variable. Since we don't we to put these information in snaptld global config.
+	url := os.Getenv(Mx4jUrl)
+	port := os.Getenv(Mx4jPort)
+	if (url == "") || (port == "") {
+		return  nil, errors.New(EnvVarNotSetErr + " " + Mx4jUrl + " " +  Mx4jPort)
 	}
 
-	url := items[Mx4jURL].(string)
-	port := items[Mx4jPORT].(int)
 	hostname, err := net.LookupAddr(url)
 	if err != nil {
 		hostname = []string{url}
 	}
-	server := fmt.Sprintf("%s:%d", url, port)
-	fmt.Println("PrintingURL")
-	fmt.Print(url, port, hostname)
+	server := fmt.Sprintf("%s:%s", url, port)
 	return NewMx4jClient(server, hostname[0]), nil
 }
 

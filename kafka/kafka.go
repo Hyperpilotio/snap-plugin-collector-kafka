@@ -23,8 +23,8 @@ const (
 	// Timeout duration
 	DefaultTimeout = 5 * time.Second
 
-	Mx4jURL    = "mx4j_url"
-	Mx4jPORT   = "mx4j_port"
+	Mx4jUrl    = "MX4J_URL"
+	Mx4jPort   = "MX4J_PORT"
 	InvalidURL = "Invalid URL in Global configuration"
 	NoHostname = "No hostname define in Global configuration"
 )
